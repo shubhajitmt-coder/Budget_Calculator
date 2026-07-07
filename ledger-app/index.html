@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Ledger — Daily Budget Passbook</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#233A4D">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Ledger">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf-autotable.min.js"></script>
+<style>
+:root{
+  --paper:#EEF1EC; --paper-alt:#E4E8E1; --card:#F8F9F5;
+  --ink:#1E2A2E; --ink-soft:#57655F; --rule:#C9D0C7; --rule-strong:#a9b3a5;
+  --green:#2F6E51; --green-soft:#DCEBE1; --green-line:#b9d6c4;
+  --amber:#95701A; --amber-soft:#F3E7C9; --amber-line:#e0c98d;
+  --rust:#A5402A; --rust-soft:#F3DCD4; --rust-line:#e0b3a4;
+  --navy:#233A4D; --navy-soft:#dde5ec;
+  --mono:'IBM Plex Mono',monospace; --serif:'Fraunces',serif; --sans:'IBM Plex Sans',sans-serif;
+  --shadow: 0 1px 2px rgba(30,42,46,0.06), 0 4px 14px rgba(30,42,46,0.05);
+  --radius: 10px;
+}
+html.dark{
+  --paper:#131a1b; --paper-alt:#1a2224; --card:#182022;
+  --ink:#e7eee9; --ink-soft:#a8b6ae; --rule:#324039; --rule-strong:#465049;
+  --green:#79c9a0; --green-soft:#1d3229; --green-line:#2c4a3b;
+  --amber:#e0bd6b; --amber-soft:#352c14; --amber-line:#5a4a20;
+  --rust:#e59683; --rust-soft:#3a211c; --rust-line:#5c3229;
+  --navy:#9db4c8; --navy-soft:#1c2a35;
+  --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 4px 18px rgba(0,0,0,0.25);
+}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);transition:background .2s,color .2s;}
+.tabular{font-family:var(--mono);font-variant-numeric:tabular-nums;}
+h1,h2,h3{font-family:var(--serif);font-weight:600;margin:0;}
+button{font-family:var(--sans);cursor:pointer;}
+input,select,textarea{font-family:var(--sans);}
+::selection{background:var(--green-soft);}
+
+/* ---------- shell ---------- */
+#app{max-width:1180px;margin:0 auto;padding:0 20px 60px;}
+.topbar{position:sticky;top:0;z-index:30;background:var(--paper);padding:18px 20px 10px;margin:0 -20px;border-bottom:1px solid var(--rule);}
+.topbar-inner{max-width:1180px;margin:0 auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+.brand{display:flex;align-items:baseline;gap:9px;margin-right:auto;}
+.brand h1{font-size:22px;letter-spacing:.2px;}
+.brand .eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--ink-soft);border:1px solid var(--rule-strong);padding:2px 6px;border-radius:20px;}
+.iconbtn{background:transparent;border:1px solid var(--rule-strong);color:var(--ink);border-radius:8px;padding:8px 10px;font-size:14px;line-height:1;display:flex;align-items:center;gap:6px;}
+.iconbtn:hover{background:var(--paper-alt);}
+.search-wrap{position:relative;}
+.search-wrap input{width:190px;padding:8px 10px 8px 30px;border:1px solid var(--rule-strong);border-radius:8px;background:var(--card);color:var(--ink);font-size:13px;}
+.search-wrap span{position:absolute;left:9px;top:9px;font-size:12px;color:var(--ink-soft);}
+.search-results{position:absolute;top:38px;right:0;width:340px;max-height:360px;overflow:auto;background:var(--card);border:1px solid var(--rule);border-radius:10px;box-shadow:var(--shadow);z-index:40;padding:6px;}
+.search-results .sr-item{padding:8px 9px;border-radius:7px;cursor:pointer;display:flex;justify-content:space-between;gap:8px;font-size:13px;}
+.search-results .sr-item:hover{background:var(--paper-alt);}
+.search-results .sr-empty{padding:14px;color:var(--ink-soft);font-size:13px;text-align:center;}
+
+/* ---------- month nav ---------- */
+.monthnav{display:flex;align-items:center;gap:10px;margin:20px 0 6px;}
+.monthnav h2{font-size:26px;}
+.monthnav button{background:var(--card);border:1px solid var(--rule-strong);width:32px;height:32px;border-radius:8px;font-size:15px;}
+.monthnav button:hover{background:var(--paper-alt);}
+.monthnav .today-btn{width:auto;padding:0 12px;font-size:12px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.5px;}
+.default-budget-inline{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-soft);}
+.default-budget-inline input{width:80px;padding:5px 7px;border:1px solid var(--rule-strong);border-radius:6px;background:var(--card);color:var(--ink);}
+
+/* ---------- suggestion / prediction banners ---------- */
+.banner{margin:14px 0;padding:12px 14px;border-radius:10px;font-size:13.5px;display:flex;gap:10px;align-items:flex-start;border:1px dashed var(--rule-strong);background:var(--card);}
+.banner b{font-family:var(--serif);}
+.banner.predict{border-style:solid;}
+.banner.predict.over{background:var(--rust-soft);border-color:var(--rust-line);color:var(--rust);}
+.banner.predict.under{background:var(--green-soft);border-color:var(--green-line);color:var(--green);}
+
+/* ---------- dashboard ---------- */
+.dashboard{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0 22px;}
+.stat{background:var(--card);border:1px solid var(--rule);border-radius:var(--radius);padding:12px 14px;box-shadow:var(--shadow);}
+.stat .label{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-soft);}
+.stat .value{font-size:20px;margin-top:4px;}
+.stat.saved .value{color:var(--green);}
+.stat.overspent .value{color:var(--rust);}
+
+/* ---------- calendar ---------- */
+.calendar{background:var(--card);border:1px solid var(--rule);border-radius:14px;padding:16px;box-shadow:var(--shadow);}
+.cal-head{display:grid;grid-template-columns:repeat(7,1fr);margin-bottom:8px;}
+.cal-head div{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-soft);text-align:center;padding:4px 0;}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;}
+.day-cell{position:relative;border:1px solid var(--rule);border-radius:9px;min-height:86px;padding:8px;background:var(--paper);cursor:pointer;transition:transform .12s, box-shadow .12s;overflow:hidden;}
+.day-cell:hover{transform:translateY(-2px);box-shadow:var(--shadow);}
+.day-cell.blank{visibility:hidden;}
+.day-cell .dnum{font-family:var(--serif);font-size:16px;}
+.day-cell .damt{font-family:var(--mono);font-size:11px;color:var(--ink-soft);margin-top:6px;line-height:1.5;}
+.day-cell.today{border-color:var(--navy);border-width:1.5px;}
+.day-cell.status-green{background:var(--green-soft);}
+.day-cell.status-yellow{background:var(--amber-soft);}
+.day-cell.status-red{background:var(--rust-soft);}
+.stamp{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;border:2px solid;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;transform:rotate(-9deg);opacity:.85;}
+.status-green .stamp{border-color:var(--green);color:var(--green);}
+.status-yellow .stamp{border-color:var(--amber);color:var(--amber);}
+.status-red .stamp{border-color:var(--rust);color:var(--rust);}
+
+.legend{display:flex;gap:16px;margin-top:12px;font-size:11.5px;color:var(--ink-soft);flex-wrap:wrap;}
+.legend span{display:inline-flex;align-items:center;gap:6px;}
+.legend i{width:10px;height:10px;border-radius:50%;display:inline-block;}
+.legend .lg{background:var(--green);} .legend .la{background:var(--amber);} .legend .lr{background:var(--rust);}
+
+/* ---------- section headers ---------- */
+.section-head{display:flex;align-items:baseline;gap:10px;margin:34px 0 12px;border-bottom:1px solid var(--rule);padding-bottom:8px;}
+.section-head h3{font-size:18px;}
+.section-head .eyebrow{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--ink-soft);}
+
+/* ---------- charts ---------- */
+.chart-tabs{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
+.chart-tabs button{background:var(--card);border:1px solid var(--rule-strong);padding:6px 12px;border-radius:20px;font-size:12.5px;color:var(--ink);}
+.chart-tabs button.active{background:var(--navy);color:#fff;border-color:var(--navy);}
+.chart-box{background:var(--card);border:1px solid var(--rule);border-radius:14px;padding:16px;box-shadow:var(--shadow);height:340px;}
+
+/* ---------- history ---------- */
+.history-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;}
+.history-card{background:var(--card);border:1px solid var(--rule);border-radius:12px;padding:12px 14px;cursor:pointer;box-shadow:var(--shadow);}
+.history-card:hover{border-color:var(--navy);}
+.history-card h4{font-family:var(--serif);font-size:15px;margin:0 0 6px;}
+.history-card .row{display:flex;justify-content:space-between;font-size:12px;color:var(--ink-soft);font-family:var(--mono);}
+
+/* ---------- footer buttons row ---------- */
+.toolrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
+.pill-btn{background:var(--card);border:1px solid var(--rule-strong);padding:7px 13px;border-radius:20px;font-size:12.5px;display:flex;align-items:center;gap:6px;}
+.pill-btn:hover{background:var(--paper-alt);}
+
+/* ---------- modal ---------- */
+.overlay{position:fixed;inset:0;background:rgba(20,26,24,.45);display:none;align-items:flex-start;justify-content:center;z-index:100;padding:40px 16px;overflow:auto;}
+.overlay.open{display:flex;}
+.modal{background:var(--card);border-radius:16px;max-width:560px;width:100%;padding:22px 24px 26px;box-shadow:0 20px 60px rgba(0,0,0,.25);border:1px solid var(--rule);}
+.modal-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;}
+.modal-head h3{font-size:19px;}
+.modal-head .close{background:transparent;border:none;font-size:20px;color:var(--ink-soft);}
+.modal .sub{font-family:var(--mono);font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:1px;}
+
+.field-row{display:flex;gap:10px;margin:10px 0;flex-wrap:wrap;}
+.field{display:flex;flex-direction:column;gap:4px;flex:1;min-width:110px;}
+.field label{font-size:11px;color:var(--ink-soft);font-family:var(--mono);text-transform:uppercase;letter-spacing:.5px;}
+.field input,.field select,.field textarea{padding:8px 9px;border:1px solid var(--rule-strong);border-radius:7px;background:var(--paper);color:var(--ink);font-size:13.5px;}
+.summary-strip{display:flex;gap:14px;flex-wrap:wrap;background:var(--paper);border:1px solid var(--rule);border-radius:10px;padding:10px 14px;margin:12px 0;}
+.summary-strip div{font-size:12px;color:var(--ink-soft);}
+.summary-strip b{display:block;font-size:16px;color:var(--ink);font-family:var(--mono);}
+
+.expense-list{margin:12px 0;display:flex;flex-direction:column;gap:7px;max-height:220px;overflow:auto;}
+.expense-item{display:flex;justify-content:space-between;align-items:center;background:var(--paper);border:1px solid var(--rule);border-radius:8px;padding:8px 10px;font-size:13px;gap:8px;}
+.expense-item .info{display:flex;flex-direction:column;gap:1px;}
+.expense-item .info .cat{font-weight:600;}
+.expense-item .info .meta{font-size:11px;color:var(--ink-soft);}
+.expense-item .amt{font-family:var(--mono);font-weight:600;}
+.expense-item .acts{display:flex;gap:4px;}
+.expense-item .acts button{background:transparent;border:none;color:var(--ink-soft);font-size:13px;padding:3px 5px;}
+.expense-item .acts button:hover{color:var(--rust);}
+.tag-chip{display:inline-block;background:var(--navy-soft);color:var(--navy);border-radius:20px;padding:1px 8px;font-size:10.5px;margin-left:6px;font-family:var(--mono);}
+
+.btn{background:var(--navy);color:#fff;border:none;padding:9px 16px;border-radius:8px;font-size:13.5px;font-weight:500;}
+.btn:hover{opacity:.9;}
+.btn.secondary{background:transparent;color:var(--ink);border:1px solid var(--rule-strong);}
+.btn.danger{background:var(--rust);}
+.btn.small{padding:6px 11px;font-size:12px;}
+.template-row{display:flex;gap:8px;align-items:center;margin:12px 0;flex-wrap:wrap;}
+
+.manage-block{margin-bottom:22px;}
+.manage-block h4{font-family:var(--serif);font-size:15px;margin-bottom:8px;}
+.chip-list{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;}
+.chip{background:var(--paper);border:1px solid var(--rule-strong);border-radius:20px;padding:4px 10px 4px 12px;font-size:12.5px;display:flex;align-items:center;gap:6px;}
+.chip button{background:none;border:none;color:var(--ink-soft);font-size:13px;}
+.recur-row,.tmpl-row{display:flex;gap:6px;align-items:center;background:var(--paper);border:1px solid var(--rule);border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:12.5px;flex-wrap:wrap;}
+.recur-row .sp,.tmpl-row .sp{flex:1;}
+.tmpl-editor{border:1px dashed var(--rule-strong);border-radius:8px;padding:10px;margin-top:6px;}
+.tmpl-line{display:flex;gap:6px;margin-bottom:6px;}
+
+footer.note{margin-top:40px;text-align:center;font-size:11.5px;color:var(--ink-soft);font-family:var(--mono);}
+@media(max-width:640px){
+  .day-cell{min-height:64px;}
+  .day-cell .damt{font-size:9.5px;}
+  .monthnav h2{font-size:20px;}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div class="topbar"><div class="topbar-inner">
+    <div class="brand"><h1>Ledger</h1><span class="eyebrow">Daily Passbook</span></div>
+    <div class="search-wrap">
+      <span>⌕</span>
+      <input id="searchInput" placeholder="Search all months…" autocomplete="off">
+      <div class="search-results" id="searchResults" style="display:none;"></div>
+    </div>
+    <button class="iconbtn" id="historyBtn">📖 History</button>
+    <button class="iconbtn" id="settingsBtn">⚙ Manage</button>
+    <button class="iconbtn" id="darkToggle">🌓</button>
+  </div></div>
+
+  <div class="monthnav">
+    <button id="prevMonth">‹</button>
+    <h2 id="monthLabel">July 2026</h2>
+    <button id="nextMonth">›</button>
+    <button class="today-btn" id="gotoToday">Today</button>
+    <div class="default-budget-inline">
+      This month's daily budget
+      <input type="number" id="monthDefaultBudget" min="0">
+    </div>
+  </div>
+
+  <div id="bannerZone"></div>
+
+  <div class="dashboard" id="dashboard"></div>
+
+  <div class="calendar">
+    <div class="cal-head">
+      <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+    </div>
+    <div class="cal-grid" id="calGrid"></div>
+    <div class="legend">
+      <span><i class="lg"></i> Budget completed</span>
+      <span><i class="la"></i> Near limit</span>
+      <span><i class="lr"></i> Overspent</span>
+    </div>
+  </div>
+
+  <div class="section-head"><h3>Charts</h3><span class="eyebrow">Visual trend</span></div>
+  <div class="chart-tabs">
+    <button data-chart="pie" class="active">Pie · Category</button>
+    <button data-chart="line">Line · Daily Trend</button>
+    <button data-chart="monthly">Bar · Monthly Trend</button>
+    <button data-chart="category">Bar · Category Trend</button>
+  </div>
+  <div id="categorySelectWrap" style="display:none;margin-bottom:10px;">
+    <select id="categoryTrendSelect"></select>
+  </div>
+  <div class="chart-box"><canvas id="mainChart"></canvas></div>
+
+  <div class="section-head"><h3>Monthly History</h3><span class="eyebrow">Stored locally</span></div>
+  <div class="history-list" id="historyList"></div>
+  <div class="toolrow">
+    <button class="pill-btn" id="exportJson">⭳ Export JSON</button>
+    <button class="pill-btn" id="exportCsv">⭳ Export CSV</button>
+    <button class="pill-btn" id="exportPdf">⭳ Export PDF</button>
+    <button class="pill-btn" id="importBtn">⭱ Import Backup</button>
+    <input type="file" id="importFile" accept="application/json" style="display:none;">
+  </div>
+
+  <footer class="note">All data stays on this device — no accounts, no cloud, no ads.</footer>
+</div>
+
+<!-- Day modal -->
+<div class="overlay" id="dayOverlay">
+  <div class="modal">
+    <div class="modal-head">
+      <div><div class="sub" id="dayModalSub">Tuesday</div><h3 id="dayModalTitle">1 July 2026</h3></div>
+      <button class="close" id="dayModalClose">✕</button>
+    </div>
+
+    <div class="field-row">
+      <div class="field"><label>Planned budget</label><input type="number" id="dayPlanned" min="0" placeholder="default"></div>
+      <div class="field"><label>Carry forward in</label><input type="text" id="dayCarry" disabled class="tabular"></div>
+    </div>
+    <div class="summary-strip" id="daySummaryStrip"></div>
+
+    <div class="template-row">
+      <select id="templateSelect"><option value="">Apply a template…</option></select>
+      <button class="btn small secondary" id="applyTemplateBtn">Apply</button>
+      <button class="btn small secondary" id="saveTemplateBtn">Save today as template</button>
+    </div>
+
+    <h4 style="font-family:var(--serif);font-size:14px;margin:14px 0 6px;">Expenses</h4>
+    <div class="expense-list" id="expenseList"></div>
+
+    <div class="field-row" style="margin-top:14px;border-top:1px dashed var(--rule);padding-top:14px;">
+      <div class="field"><label>Category</label><select id="expCategory"></select></div>
+      <div class="field"><label>Amount ₹</label><input type="number" id="expAmount" min="0"></div>
+      <div class="field"><label>Tag</label><select id="expTag"><option value="">—</option></select></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Note</label><input type="text" id="expNote" placeholder="optional note"></div>
+      <div class="field"><label>Time</label><input type="time" id="expTime"></div>
+    </div>
+    <div class="field-row">
+      <button class="btn" id="addExpenseBtn">Add expense</button>
+      <button class="btn secondary" id="cancelEditBtn" style="display:none;">Cancel edit</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings modal -->
+<div class="overlay" id="settingsOverlay">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-head"><h3>Manage</h3><button class="close" id="settingsClose">✕</button></div>
+
+    <div class="manage-block">
+      <h4>Expense categories</h4>
+      <div class="chip-list" id="categoryChips"></div>
+      <div class="field-row"><input type="text" id="newCategory" placeholder="Add category e.g. Petrol" style="flex:2;padding:8px;border:1px solid var(--rule-strong);border-radius:7px;background:var(--paper);color:var(--ink);"><button class="btn small" id="addCategoryBtn">Add</button></div>
+    </div>
+
+    <div class="manage-block">
+      <h4>Tags</h4>
+      <div class="chip-list" id="tagChips"></div>
+      <div class="field-row"><input type="text" id="newTag" placeholder="#Emergency" style="flex:2;padding:8px;border:1px solid var(--rule-strong);border-radius:7px;background:var(--paper);color:var(--ink);"><button class="btn small" id="addTagBtn">Add</button></div>
+    </div>
+
+    <div class="manage-block">
+      <h4>Default daily budget (global fallback)</h4>
+      <input type="number" id="globalDefaultBudget" min="0" style="padding:8px;border:1px solid var(--rule-strong);border-radius:7px;background:var(--paper);color:var(--ink);width:140px;">
+    </div>
+
+    <div class="manage-block">
+      <h4>Recurring expenses</h4>
+      <div id="recurList"></div>
+      <div class="field-row">
+        <select id="recurWeekday"><option value="0">Sunday</option><option value="1" selected>Monday</option><option value="2">Tuesday</option><option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option></select>
+        <select id="recurCategory"></select>
+        <input type="number" id="recurAmount" placeholder="Amount ₹" style="width:100px;padding:8px;border:1px solid var(--rule-strong);border-radius:7px;background:var(--paper);color:var(--ink);">
+        <input type="text" id="recurName" placeholder="Name e.g. College Bus" style="width:150px;padding:8px;border:1px solid var(--rule-strong);border-radius:7px;background:var(--paper);color:var(--ink);">
+        <button class="btn small" id="addRecurBtn">Add</button>
+      </div>
+    </div>
+
+    <div class="manage-block">
+      <h4>Templates</h4>
+      <div id="tmplList"></div>
+      <div class="tmpl-editor">
+        <input type="text" id="newTmplName" placeholder="Template name e.g. Weekday" style="width:100%;margin-bottom:8px;padding:8px;border:1px solid var(--rule-strong);border-radius:7px;background:var(--paper);color:var(--ink);">
+        <div id="newTmplLines"></div>
+        <button class="btn small secondary" id="addTmplLineBtn">+ line</button>
+        <button class="btn small" id="saveNewTmplBtn">Save template</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- History modal -->
+<div class="overlay" id="historyOverlay">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-head"><h3>Monthly history</h3><button class="close" id="historyClose">✕</button></div>
+    <div class="history-list" id="historyListModal"></div>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   DATA LAYER
+   ========================================================= */
+const STORAGE_KEY = 'ledgerBudgetApp_v1';
+const WEEKDAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+function defaultData(){
+  return {
+    categories:['Travel','Food','Tuition','Recharge','Medicine','Movie','Restaurant','Petrol'],
+    tags:['#College','#Home','#Emergency','#Entertainment'],
+    defaultDailyBudget:500,
+    recurring:[{id:genId(),name:'College Bus',category:'Travel',weekday:1,amount:40,tag:'#College'}],
+    templates:{
+      'Weekday':[{category:'Travel',amount:40},{category:'Food',amount:150}],
+      'Sunday':[{category:'Movie',amount:300},{category:'Restaurant',amount:400}]
+    },
+    months:{},
+    darkMode:false
+  };
+}
+function genId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
+
+let data = loadData();
+function loadData(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw) return JSON.parse(raw);
+  }catch(e){console.error('Load failed',e);}
+  return defaultData();
+}
+function saveData(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+
+function pad2(n){return n<10?'0'+n:''+n;}
+function monthKeyOf(y,m){return y+'-'+pad2(m+1);}
+function dateKeyOf(y,m,d){return y+'-'+pad2(m+1)+'-'+pad2(d);}
+function parseMonthKey(mk){const [y,m]=mk.split('-').map(Number);return {y,m:m-1};}
+function daysInMonth(y,m){return new Date(y,m+1,0).getDate();}
+function fmtRs(n){
+  const neg = n<0; n=Math.abs(Math.round(n));
+  let s = n.toString();
+  let last3=s.slice(-3), rest=s.slice(0,-3);
+  if(rest!=='') last3=','+last3;
+  rest = rest.replace(/\B(?=(\d{2})+(?!\d))/g, ',');
+  return (neg?'-':'')+'₹'+rest+last3;
+}
+function todayKeyParts(){const t=new Date();return {y:t.getFullYear(),m:t.getMonth(),d:t.getDate()};}
+
+function getMonthData(mk){
+  if(!data.months[mk]) data.months[mk] = {defaultBudget:null, days:{}};
+  return data.months[mk];
+}
+function getDayData(mk,dk){
+  const md = getMonthData(mk);
+  if(!md.days[dk]) md.days[dk] = {planned:null, expenses:[], appliedRecurring:[]};
+  return md.days[dk];
+}
+function getPlannedForDay(mk,dk){
+  const md=getMonthData(mk), dd=getDayData(mk,dk);
+  if(dd.planned!==null && dd.planned!==undefined) return dd.planned;
+  if(md.defaultBudget!==null && md.defaultBudget!==undefined) return md.defaultBudget;
+  return data.defaultDailyBudget;
+}
+function getSpentForDay(mk,dk){
+  return getDayData(mk,dk).expenses.reduce((s,e)=>s+Number(e.amount||0),0);
+}
+function prevMonthKey(mk){const {y,m}=parseMonthKey(mk); const d=new Date(y,m-1,1); return monthKeyOf(d.getFullYear(),d.getMonth());}
+function nextMonthKeyOf(mk){const {y,m}=parseMonthKey(mk); const d=new Date(y,m+1,1); return monthKeyOf(d.getFullYear(),d.getMonth());}
+
+function applyRecurringForMonth(mk){
+  const {y,m}=parseMonthKey(mk);
+  const total = daysInMonth(y,m);
+  for(let d=1;d<=total;d++){
+    const dk = dateKeyOf(y,m,d);
+    const weekday = new Date(y,m,d).getDay();
+    const dd = getDayData(mk,dk);
+    data.recurring.forEach(rule=>{
+      if(Number(rule.weekday)===weekday && !dd.appliedRecurring.includes(rule.id)){
+        dd.expenses.push({id:genId(), category:rule.category, amount:Number(rule.amount), note:'Recurring · '+rule.name, tag:rule.tag||'', time:'', recurringId:rule.id});
+        dd.appliedRecurring.push(rule.id);
+      }
+    });
+  }
+}
+
+/* Recompute a continuous carry-forward chain across every month that has data,
+   plus the currently viewed month. Returns a stats object per month key. */
+let statsCache = {};
+function refreshAllStats(){
+  applyRecurringForMonth(currentMonthKey());
+  const keys = new Set(Object.keys(data.months));
+  keys.add(currentMonthKey());
+  const sorted = Array.from(keys).sort();
+  statsCache = {};
+  let running = 0;
+  sorted.forEach(mk=>{
+    const {y,m} = parseMonthKey(mk);
+    const total = daysInMonth(y,m);
+    const dayStats = [];
+    let carry = running;
+    let totalBudget=0, totalSpent=0;
+    let highest=null, lowest=null;
+    for(let d=1;d<=total;d++){
+      const dk = dateKeyOf(y,m,d);
+      const planned = getPlannedForDay(mk,dk);
+      const spent = getSpentForDay(mk,dk);
+      const available = planned + carry;
+      const remaining = available - spent;
+      totalBudget += planned; totalSpent += spent;
+      if(spent>0){
+        if(highest===null || spent>highest.spent) highest={d,spent};
+        if(lowest===null || spent<lowest.spent) lowest={d,spent};
+      }
+      const dateObj = new Date(y,m,d);
+      dayStats.push({dk,d,planned,carryIn:carry,available,spent,remaining,weekday:dateObj.getDay(),isFuture: dateObj>new Date(new Date().setHours(0,0,0,0))});
+      carry = remaining;
+    }
+    statsCache[mk] = {y,m,total,days:dayStats,totalBudget,totalSpent,totalSaved:Math.max(totalBudget-totalSpent,0),totalOverspent:Math.max(totalSpent-totalBudget,0),endCarry:carry,highest,lowest};
+    running = carry;
+  });
+}
+function currentMonthKey(){return monthKeyOf(view.y,view.m);}
+
+/* =========================================================
+   STATE
+   ========================================================= */
+const t0 = todayKeyParts();
+let view = {y:t0.y, m:t0.m};
+let editingExpenseId = null;
+
+/* =========================================================
+   RENDER: shell / header
+   ========================================================= */
+function applyDarkMode(){
+  document.documentElement.classList.toggle('dark', !!data.darkMode);
+}
+function render(){
+  refreshAllStats();
+  document.getElementById('monthLabel').textContent = MONTHS[view.m]+' '+view.y;
+  const md = getMonthData(currentMonthKey());
+  document.getElementById('monthDefaultBudget').value = md.defaultBudget!==null && md.defaultBudget!==undefined ? md.defaultBudget : '';
+  document.getElementById('monthDefaultBudget').placeholder = data.defaultDailyBudget;
+  renderDashboard();
+  renderBanners();
+  renderCalendar();
+  renderHistory();
+  renderChart();
+  populateCategorySelects();
+  saveData();
+}
+
+/* ---------- dashboard ---------- */
+function renderDashboard(){
+  const s = statsCache[currentMonthKey()];
+  const el = document.getElementById('dashboard');
+  const todayIsThisMonth = (view.y===t0.y && view.m===t0.m);
+  const elapsed = todayIsThisMonth ? t0.d : s.total;
+  const avg = elapsed>0 ? s.totalSpent/elapsed : 0;
+  el.innerHTML = `
+    <div class="stat"><div class="label">Total Budget</div><div class="value tabular">${fmtRs(s.totalBudget)}</div></div>
+    <div class="stat"><div class="label">Total Expenses</div><div class="value tabular">${fmtRs(s.totalSpent)}</div></div>
+    <div class="stat saved"><div class="label">Total Saved</div><div class="value tabular">${fmtRs(s.totalSaved)}</div></div>
+    <div class="stat overspent"><div class="label">Total Overspent</div><div class="value tabular">${fmtRs(s.totalOverspent)}</div></div>
+    <div class="stat"><div class="label">Daily Average</div><div class="value tabular">${fmtRs(avg)}</div></div>
+    <div class="stat"><div class="label">Highest Spending Day</div><div class="value tabular">${s.highest?MONTHS[s.m].slice(0,3)+' '+s.highest.d+' · '+fmtRs(s.highest.spent):'—'}</div></div>
+    <div class="stat"><div class="label">Lowest Spending Day</div><div class="value tabular">${s.lowest?MONTHS[s.m].slice(0,3)+' '+s.lowest.d+' · '+fmtRs(s.lowest.spent):'—'}</div></div>
+  `;
+}
+
+/* ---------- banners: prediction + smart suggestion ---------- */
+function renderBanners(){
+  const zone = document.getElementById('bannerZone');
+  let html='';
+  const s = statsCache[currentMonthKey()];
+  const isCurrent = (view.y===t0.y && view.m===t0.m);
+  if(isCurrent && t0.d>=3){
+    const avgPerDay = s.totalSpent/t0.d;
+    const projected = avgPerDay*s.total;
+    const diff = projected - s.totalBudget;
+    if(diff>0){
+      html += `<div class="banner predict over"><span>⚠</span><div>After <b>${t0.d} days</b>, you're on pace to exceed this month's budget by <b>${fmtRs(diff)}</b>.</div></div>`;
+    } else {
+      html += `<div class="banner predict under"><span>✓</span><div>After <b>${t0.d} days</b>, you're on track to save about <b>${fmtRs(-diff)}</b> this month.</div></div>`;
+    }
+  }
+  const suggestion = computeSmartSuggestion();
+  if(suggestion){
+    html += `<div class="banner"><span>💡</span><div>Every <b>${suggestion.weekday}</b> you tend to spend about <b>${fmtRs(suggestion.avg)}</b> on <b>${suggestion.category}</b>. Consider budgeting for it.</div></div>`;
+  }
+  zone.innerHTML = html;
+}
+function computeSmartSuggestion(){
+  const buckets = {};
+  Object.keys(data.months).forEach(mk=>{
+    const md = data.months[mk];
+    Object.keys(md.days).forEach(dk=>{
+      const [y,m,d] = dk.split('-').map(Number);
+      const wd = new Date(y,m-1,d).getDay();
+      md.days[dk].expenses.forEach(e=>{
+        if(e.recurringId) return;
+        const key = wd+'|'+e.category;
+        if(!buckets[key]) buckets[key]={sum:0,count:0,wd,category:e.category};
+        buckets[key].sum += Number(e.amount||0);
+        buckets[key].count += 1;
+      });
+    });
+  });
+  let best=null;
+  Object.values(buckets).forEach(b=>{
+    if(b.count>=2 && (!best || b.count>best.count)){
+      best = {weekday:WEEKDAYS[b.wd], avg:Math.round(b.sum/b.count), category:b.category};
+    }
+  });
+  return best;
+}
+
+/* ---------- calendar ---------- */
+function renderCalendar(){
+  const mk = currentMonthKey();
+  const s = statsCache[mk];
+  const grid = document.getElementById('calGrid');
+  const firstWeekday = new Date(view.y,view.m,1).getDay();
+  let html='';
+  for(let i=0;i<firstWeekday;i++) html += `<div class="day-cell blank"></div>`;
+  s.days.forEach(day=>{
+    let status = 'neutral';
+    if(day.spent>0 || !day.isFuture){
+      if(day.available<=0){ status = day.spent>0 ? 'red' : 'gray'; }
+      else if(day.spent>day.available) status='red';
+      else if(day.spent>=0.8*day.available) status='yellow';
+      else status='green';
+    }
+    if(day.isFuture && day.spent===0) status='neutral';
+    const isToday = (view.y===t0.y && view.m===t0.m && day.d===t0.d);
+    const stampChar = status==='green'?'✓':status==='yellow'?'!':status==='red'?'✕':'';
+    html += `<div class="day-cell ${status!=='neutral'&&status!=='gray'?'status-'+status:''} ${isToday?'today':''}" data-date="${day.dk}">
+      ${stampChar?`<div class="stamp">${stampChar}</div>`:''}
+      <div class="dnum">${day.d}</div>
+      <div class="damt">Bud ${fmtRs(day.available)}<br>Spt ${fmtRs(day.spent)}</div>
+    </div>`;
+  });
+  grid.innerHTML = html;
+  grid.querySelectorAll('.day-cell[data-date]').forEach(cell=>{
+    cell.addEventListener('click', ()=> openDayModal(cell.dataset.date));
+  });
+}
+
+/* ---------- history ---------- */
+function monthSummary(mk){
+  refreshAllStats();
+  return statsCache[mk];
+}
+function renderHistory(){
+  const keys = Object.keys(data.months).sort().reverse();
+  const build = (targetId)=>{
+    const el = document.getElementById(targetId);
+    if(keys.length===0){ el.innerHTML = `<div style="color:var(--ink-soft);font-size:13px;">No history yet — start adding expenses.</div>`; return; }
+    el.innerHTML = keys.map(mk=>{
+      const {y,m} = parseMonthKey(mk);
+      const s = statsCache[mk] || monthSummary(mk);
+      return `<div class="history-card" data-mk="${mk}">
+        <h4>${MONTHS[m]} ${y}</h4>
+        <div class="row"><span>Budget</span><span>${fmtRs(s.totalBudget)}</span></div>
+        <div class="row"><span>Spent</span><span>${fmtRs(s.totalSpent)}</span></div>
+        <div class="row"><span>${s.totalOverspent>0?'Overspent':'Saved'}</span><span>${fmtRs(s.totalOverspent>0?s.totalOverspent:s.totalSaved)}</span></div>
+      </div>`;
+    }).join('');
+    el.querySelectorAll('.history-card').forEach(c=>{
+      c.addEventListener('click', ()=>{
+        const {y,m} = parseMonthKey(c.dataset.mk);
+        view = {y,m};
+        closeOverlay('historyOverlay');
+        render();
+      });
+    });
+  };
+  build('historyList');
+  build('historyListModal');
+}
+
+/* =========================================================
+   DAY MODAL
+   ========================================================= */
+function openDayModal(dk){
+  currentDayKey = dk;
+  const mk = currentMonthKey();
+  const [y,m,d] = dk.split('-').map(Number);
+  const dateObj = new Date(y,m-1,d);
+  document.getElementById('dayModalSub').textContent = WEEKDAYS[dateObj.getDay()];
+  document.getElementById('dayModalTitle').textContent = `${d} ${MONTHS[m-1]} ${y}`;
+  const dd = getDayData(mk,dk);
+  document.getElementById('dayPlanned').value = dd.planned!==null && dd.planned!==undefined ? dd.planned : '';
+  document.getElementById('dayPlanned').placeholder = getPlannedForDay(mk,dk).toString();
+  const s = statsCache[mk].days.find(x=>x.dk===dk);
+  document.getElementById('dayCarry').value = fmtRs(s.carryIn);
+  renderDaySummaryStrip(s);
+  renderExpenseList(mk,dk);
+  populateTemplateSelect();
+  cancelEdit();
+  document.getElementById('dayOverlay').classList.add('open');
+}
+function renderDaySummaryStrip(s){
+  document.getElementById('daySummaryStrip').innerHTML = `
+    <div>Planned<b>${fmtRs(s.planned)}</b></div>
+    <div>Carry Forward<b>${(s.carryIn>=0?'+':'')+fmtRs(s.carryIn)}</b></div>
+    <div>Available<b>${fmtRs(s.available)}</b></div>
+    <div>Spent<b>${fmtRs(s.spent)}</b></div>
+    <div>Remaining<b style="color:${s.remaining<0?'var(--rust)':'var(--green)'}">${fmtRs(s.remaining)}</b></div>
+  `;
+}
+function renderExpenseList(mk,dk){
+  const dd = getDayData(mk,dk);
+  const el = document.getElementById('expenseList');
+  if(dd.expenses.length===0){ el.innerHTML = `<div style="color:var(--ink-soft);font-size:13px;padding:6px 2px;">No expenses added yet.</div>`; return; }
+  el.innerHTML = dd.expenses.map(e=>`
+    <div class="expense-item" data-id="${e.id}">
+      <div class="info">
+        <div class="cat">${e.category}${e.tag?`<span class="tag-chip">${e.tag}</span>`:''}</div>
+        <div class="meta">${e.note?e.note:''} ${e.time?'· '+e.time:''}</div>
+      </div>
+      <div class="amt">${fmtRs(e.amount)}</div>
+      <div class="acts">
+        <button class="edit" title="Edit">✎</button>
+        <button class="del" title="Delete">🗑</button>
+      </div>
+    </div>
+  `).join('');
+  el.querySelectorAll('.expense-item').forEach(item=>{
+    const id = item.dataset.id;
+    item.querySelector('.del').addEventListener('click', ()=>{
+      const dd = getDayData(currentMonthKey(),currentDayKey);
+      dd.expenses = dd.expenses.filter(e=>e.id!==id);
+      render(); openDayModal(currentDayKey);
+    });
+    item.querySelector('.edit').addEventListener('click', ()=>{
+      const dd = getDayData(currentMonthKey(),currentDayKey);
+      const e = dd.expenses.find(x=>x.id===id);
+      document.getElementById('expCategory').value = e.category;
+      document.getElementById('expAmount').value = e.amount;
+      document.getElementById('expTag').value = e.tag||'';
+      document.getElementById('expNote').value = e.note||'';
+      document.getElementById('expTime').value = e.time||'';
+      editingExpenseId = id;
+      document.getElementById('addExpenseBtn').textContent = 'Save changes';
+      document.getElementById('cancelEditBtn').style.display='inline-block';
+    });
+  });
+}
+function cancelEdit(){
+  editingExpenseId = null;
+  document.getElementById('addExpenseBtn').textContent = 'Add expense';
+  document.getElementById('cancelEditBtn').style.display='none';
+  document.getElementById('expAmount').value='';
+  document.getElementById('expNote').value='';
+  document.getElementById('expTime').value='';
+}
+let currentDayKey = null;
+
+/* =========================================================
+   CHARTS
+   ========================================================= */
+let chartInstance = null;
+let activeChart = 'pie';
+function renderChart(){
+  const ctx = document.getElementById('mainChart');
+  if(chartInstance) chartInstance.destroy();
+  const mk = currentMonthKey();
+  const s = statsCache[mk];
+  const isDark = data.darkMode;
+  const textColor = isDark ? '#cfd8d2' : '#57655f';
+  Chart.defaults.color = textColor;
+  Chart.defaults.font.family = "'IBM Plex Sans', sans-serif";
+
+  if(activeChart==='pie'){
+    const md = getMonthData(mk);
+    const totals = {};
+    Object.values(md.days).forEach(dd=>dd.expenses.forEach(e=>{ totals[e.category]=(totals[e.category]||0)+Number(e.amount); }));
+    const labels = Object.keys(totals);
+    chartInstance = new Chart(ctx,{type:'pie',data:{labels, datasets:[{data:labels.map(l=>totals[l]), backgroundColor:palette(labels.length)}]},options:{plugins:{legend:{position:'right'}}}});
+  } else if(activeChart==='line'){
+    const labels = s.days.map(d=>d.d);
+    chartInstance = new Chart(ctx,{type:'line',data:{labels,datasets:[
+      {label:'Planned',data:s.days.map(d=>d.available),borderColor:'#2F6E51',backgroundColor:'transparent',tension:.25},
+      {label:'Spent',data:s.days.map(d=>d.spent),borderColor:'#A5402A',backgroundColor:'transparent',tension:.25}
+    ]},options:{scales:{x:{title:{display:true,text:'Day of month'}}}}});
+  } else if(activeChart==='monthly'){
+    const keys = Object.keys(data.months).sort();
+    if(!keys.includes(mk)) keys.push(mk);
+    const labels = keys.map(k=>{const {y,m}=parseMonthKey(k);return MONTHS[m].slice(0,3)+' '+y;});
+    const st = keys.map(k=>statsCache[k]||monthSummary(k));
+    chartInstance = new Chart(ctx,{type:'bar',data:{labels,datasets:[
+      {label:'Budget',data:st.map(x=>x.totalBudget),backgroundColor:'#8fb7a1'},
+      {label:'Spent',data:st.map(x=>x.totalSpent),backgroundColor:'#c98a77'}
+    ]}});
+  } else if(activeChart==='category'){
+    const cat = document.getElementById('categoryTrendSelect').value || data.categories[0];
+    const keys = Object.keys(data.months).sort();
+    if(!keys.includes(mk)) keys.push(mk);
+    const labels = keys.map(k=>{const {y,m}=parseMonthKey(k);return MONTHS[m].slice(0,3)+' '+y;});
+    const vals = keys.map(k=>{
+      const md = data.months[k]; if(!md) return 0;
+      let sum=0; Object.values(md.days).forEach(dd=>dd.expenses.forEach(e=>{if(e.category===cat) sum+=Number(e.amount);}));
+      return sum;
+    });
+    chartInstance = new Chart(ctx,{type:'bar',data:{labels,datasets:[{label:cat,data:vals,backgroundColor:'#6f9a86'}]}});
+  }
+}
+function palette(n){
+  const base=['#2F6E51','#95701A','#A5402A','#233A4D','#6f9a86','#c98a77','#7f8fae','#b79b4d','#4a7a6b','#9a5a48'];
+  const out=[]; for(let i=0;i<n;i++) out.push(base[i%base.length]); return out;
+}
+
+/* =========================================================
+   TEMPLATES / RECURRING / CATEGORY SELECTS
+   ========================================================= */
+function populateCategorySelects(){
+  const cats = data.categories;
+  ['expCategory','recurCategory'].forEach(id=>{
+    const el = document.getElementById(id);
+    const cur = el.value;
+    el.innerHTML = cats.map(c=>`<option value="${c}">${c}</option>`).join('');
+    if(cats.includes(cur)) el.value = cur;
+  });
+  const tagSel = document.getElementById('expTag');
+  const curTag = tagSel.value;
+  tagSel.innerHTML = '<option value="">—</option>' + data.tags.map(t=>`<option value="${t}">${t}</option>`).join('');
+  tagSel.value = curTag;
+  const catTrend = document.getElementById('categoryTrendSelect');
+  const curCT = catTrend.value;
+  catTrend.innerHTML = cats.map(c=>`<option value="${c}">${c}</option>`).join('');
+  if(cats.includes(curCT)) catTrend.value = curCT;
+}
+function populateTemplateSelect(){
+  const sel = document.getElementById('templateSelect');
+  sel.innerHTML = '<option value="">Apply a template…</option>' + Object.keys(data.templates).map(n=>`<option value="${n}">${n}</option>`).join('');
+}
+
+/* =========================================================
+   SETTINGS PANEL RENDER
+   ========================================================= */
+function renderSettings(){
+  document.getElementById('globalDefaultBudget').value = data.defaultDailyBudget;
+  document.getElementById('categoryChips').innerHTML = data.categories.map(c=>`<span class="chip">${c}<button data-c="${c}" class="rm-cat">✕</button></span>`).join('');
+  document.getElementById('tagChips').innerHTML = data.tags.map(t=>`<span class="chip">${t}<button data-t="${t}" class="rm-tag">✕</button></span>`).join('');
+  document.querySelectorAll('.rm-cat').forEach(b=>b.addEventListener('click',()=>{
+    data.categories = data.categories.filter(c=>c!==b.dataset.c); render(); renderSettings();
+  }));
+  document.querySelectorAll('.rm-tag').forEach(b=>b.addEventListener('click',()=>{
+    data.tags = data.tags.filter(t=>t!==b.dataset.t); render(); renderSettings();
+  }));
+  document.getElementById('recurList').innerHTML = data.recurring.map(r=>`
+    <div class="recur-row"><span class="sp"><b>${r.name}</b> — every ${WEEKDAYS[r.weekday]} · ${r.category} · ${fmtRs(r.amount)}</span>
+    <button class="btn small danger rm-recur" data-id="${r.id}">Remove</button></div>
+  `).join('') || '<div style="color:var(--ink-soft);font-size:13px;">No recurring expenses yet.</div>';
+  document.querySelectorAll('.rm-recur').forEach(b=>b.addEventListener('click',()=>{
+    data.recurring = data.recurring.filter(r=>r.id!==b.dataset.id); render(); renderSettings();
+  }));
+  document.getElementById('tmplList').innerHTML = Object.keys(data.templates).map(name=>{
+    const lines = data.templates[name].map(l=>`${l.category} ${fmtRs(l.amount)}`).join(', ');
+    return `<div class="tmpl-row"><span class="sp"><b>${name}</b>: ${lines}</span><button class="btn small danger rm-tmpl" data-name="${name}">Remove</button></div>`;
+  }).join('') || '<div style="color:var(--ink-soft);font-size:13px;">No templates yet.</div>';
+  document.querySelectorAll('.rm-tmpl').forEach(b=>b.addEventListener('click',()=>{
+    delete data.templates[b.dataset.name]; render(); renderSettings();
+  }));
+  populateCategorySelects();
+  resetNewTmplLines();
+}
+function resetNewTmplLines(){
+  document.getElementById('newTmplName').value='';
+  const wrap = document.getElementById('newTmplLines');
+  wrap.innerHTML='';
+  addTmplLine(); addTmplLine();
+}
+function addTmplLine(){
+  const wrap = document.getElementById('newTmplLines');
+  const row = document.createElement('div');
+  row.className='tmpl-line';
+  row.innerHTML = `<select class="tl-cat">${data.categories.map(c=>`<option value="${c}">${c}</option>`).join('')}</select>
+    <input type="number" class="tl-amt" placeholder="Amount ₹" style="width:110px;padding:7px;border:1px solid var(--rule-strong);border-radius:6px;background:var(--paper);color:var(--ink);">`;
+  wrap.appendChild(row);
+}
+
+/* =========================================================
+   SEARCH
+   ========================================================= */
+function runSearch(q){
+  const box = document.getElementById('searchResults');
+  if(!q.trim()){ box.style.display='none'; return; }
+  q = q.toLowerCase();
+  const results = [];
+  Object.keys(data.months).sort().reverse().forEach(mk=>{
+    const md = data.months[mk];
+    Object.keys(md.days).forEach(dk=>{
+      md.days[dk].expenses.forEach(e=>{
+        const hay = (e.category+' '+(e.note||'')+' '+(e.tag||'')).toLowerCase();
+        if(hay.includes(q)) results.push({mk,dk,e});
+      });
+    });
+  });
+  if(results.length===0){ box.innerHTML = `<div class="sr-empty">No matches found.</div>`; }
+  else {
+    box.innerHTML = results.slice(0,40).map(r=>{
+      const {y,m,d}=(()=>{const [yy,mm,dd]=r.dk.split('-').map(Number);return {y:yy,m:mm,d:dd};})();
+      return `<div class="sr-item" data-mk="${r.mk}" data-dk="${r.dk}"><span>${r.e.category} ${r.e.tag?r.e.tag:''} <br><span style="color:var(--ink-soft);font-size:11px;">${r.e.note||''}</span></span><span class="tabular">${fmtRs(r.e.amount)}<br><span style="color:var(--ink-soft);font-size:11px;">${d} ${MONTHS[m-1].slice(0,3)} ${y}</span></span></div>`;
+    }).join('');
+    box.querySelectorAll('.sr-item').forEach(item=>{
+      item.addEventListener('click', ()=>{
+        const {y,m} = parseMonthKey(item.dataset.mk);
+        view = {y,m}; render(); box.style.display='none';
+        document.getElementById('searchInput').value='';
+        openDayModal(item.dataset.dk);
+      });
+    });
+  }
+  box.style.display='block';
+}
+
+/* =========================================================
+   EXPORT / IMPORT
+   ========================================================= */
+function downloadBlob(content, filename, type){
+  const blob = new Blob([content],{type});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href=url; a.download=filename; a.click();
+  URL.revokeObjectURL(url);
+}
+function exportJSON(){ downloadBlob(JSON.stringify(data,null,2), 'ledger-backup.json', 'application/json'); }
+function exportCSV(){
+  let rows = [['Month','Date','Category','Amount','Note','Tag','Planned','Spent','Remaining']];
+  Object.keys(data.months).sort().forEach(mk=>{
+    refreshAllStats();
+    const s = statsCache[mk];
+    const md = data.months[mk];
+    Object.keys(md.days).sort().forEach(dk=>{
+      const dstat = s.days.find(x=>x.dk===dk);
+      const dd = md.days[dk];
+      if(dd.expenses.length===0){
+        rows.push([mk,dk,'','','','',dstat?dstat.planned:'',dstat?dstat.spent:'',dstat?dstat.remaining:'']);
+      } else {
+        dd.expenses.forEach(e=>{
+          rows.push([mk,dk,e.category,e.amount,(e.note||'').replace(/,/g,';'),e.tag||'',dstat?dstat.planned:'',dstat?dstat.spent:'',dstat?dstat.remaining:'']);
+        });
+      }
+    });
+  });
+  const csv = rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  downloadBlob(csv, 'ledger-export.csv', 'text/csv');
+}
+function exportPDF(){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const mk = currentMonthKey();
+  const s = statsCache[mk];
+  doc.setFontSize(16); doc.text(`Ledger — ${MONTHS[view.m]} ${view.y}`, 14, 16);
+  doc.setFontSize(10);
+  doc.text(`Total Budget: ${fmtRs(s.totalBudget)}   Total Expenses: ${fmtRs(s.totalSpent)}   Saved: ${fmtRs(s.totalSaved)}   Overspent: ${fmtRs(s.totalOverspent)}`, 14, 24);
+  const body = s.days.map(d=>[d.d, fmtRs(d.planned), fmtRs(d.carryIn), fmtRs(d.available), fmtRs(d.spent), fmtRs(d.remaining)]);
+  doc.autoTable({startY:30, head:[['Date','Planned','Carry','Available','Spent','Remaining']], body, styles:{fontSize:8}});
+  doc.save(`ledger-${mk}.pdf`);
+}
+function importBackup(file){
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try{
+      const parsed = JSON.parse(e.target.result);
+      if(!parsed.categories || !parsed.months){ alert('This file does not look like a valid Ledger backup.'); return; }
+      if(confirm('Import will replace your current data. Continue?')){
+        data = parsed;
+        applyDarkMode();
+        saveData(); render(); renderSettings();
+      }
+    }catch(err){ alert('Could not read this file.'); }
+  };
+  reader.readAsText(file);
+}
+
+/* =========================================================
+   EVENT WIRING
+   ========================================================= */
+function openOverlay(id){ document.getElementById(id).classList.add('open'); }
+function closeOverlay(id){ document.getElementById(id).classList.remove('open'); }
+
+document.getElementById('prevMonth').addEventListener('click',()=>{
+  const d = new Date(view.y,view.m-1,1); view={y:d.getFullYear(),m:d.getMonth()}; render();
+});
+document.getElementById('nextMonth').addEventListener('click',()=>{
+  const d = new Date(view.y,view.m+1,1); view={y:d.getFullYear(),m:d.getMonth()}; render();
+});
+document.getElementById('gotoToday').addEventListener('click',()=>{ view={y:t0.y,m:t0.m}; render(); });
+document.getElementById('monthDefaultBudget').addEventListener('change',(e)=>{
+  const md = getMonthData(currentMonthKey());
+  md.defaultBudget = e.target.value===''? null : Number(e.target.value);
+  render();
+});
+
+document.getElementById('darkToggle').addEventListener('click',()=>{
+  data.darkMode = !data.darkMode; applyDarkMode(); render();
+});
+document.getElementById('historyBtn').addEventListener('click',()=>{ renderHistory(); openOverlay('historyOverlay'); });
+document.getElementById('historyClose').addEventListener('click',()=>closeOverlay('historyOverlay'));
+document.getElementById('settingsBtn').addEventListener('click',()=>{ renderSettings(); openOverlay('settingsOverlay'); });
+document.getElementById('settingsClose').addEventListener('click',()=>closeOverlay('settingsOverlay'));
+document.getElementById('dayModalClose').addEventListener('click',()=>closeOverlay('dayOverlay'));
+[document.getElementById('dayOverlay'),document.getElementById('settingsOverlay'),document.getElementById('historyOverlay')].forEach(ov=>{
+  ov.addEventListener('click',(e)=>{ if(e.target===ov) ov.classList.remove('open'); });
+});
+
+document.getElementById('searchInput').addEventListener('input',(e)=>runSearch(e.target.value));
+document.addEventListener('click',(e)=>{
+  if(!e.target.closest('.search-wrap')) document.getElementById('searchResults').style.display='none';
+});
+
+document.getElementById('dayPlanned').addEventListener('change',(e)=>{
+  const dd = getDayData(currentMonthKey(),currentDayKey);
+  dd.planned = e.target.value===''? null : Number(e.target.value);
+  render(); openDayModal(currentDayKey);
+});
+
+document.getElementById('addExpenseBtn').addEventListener('click',()=>{
+  const cat = document.getElementById('expCategory').value;
+  const amt = Number(document.getElementById('expAmount').value);
+  const tag = document.getElementById('expTag').value;
+  const note = document.getElementById('expNote').value;
+  const time = document.getElementById('expTime').value;
+  if(!amt || amt<=0){ alert('Enter a valid amount.'); return; }
+  const dd = getDayData(currentMonthKey(),currentDayKey);
+  if(editingExpenseId){
+    const ex = dd.expenses.find(x=>x.id===editingExpenseId);
+    Object.assign(ex,{category:cat,amount:amt,tag,note,time});
+  } else {
+    dd.expenses.push({id:genId(),category:cat,amount:amt,tag,note,time});
+  }
+  cancelEdit();
+  render(); openDayModal(currentDayKey);
+});
+document.getElementById('cancelEditBtn').addEventListener('click', cancelEdit);
+
+document.getElementById('applyTemplateBtn').addEventListener('click',()=>{
+  const name = document.getElementById('templateSelect').value;
+  if(!name) return;
+  const dd = getDayData(currentMonthKey(),currentDayKey);
+  data.templates[name].forEach(l=>{
+    dd.expenses.push({id:genId(),category:l.category,amount:l.amount,tag:'',note:'From template · '+name,time:''});
+  });
+  render(); openDayModal(currentDayKey);
+});
+document.getElementById('saveTemplateBtn').addEventListener('click',()=>{
+  const dd = getDayData(currentMonthKey(),currentDayKey);
+  if(dd.expenses.length===0){ alert('Add some expenses to this day first.'); return; }
+  const name = prompt("Save this day's expenses as a template named:");
+  if(!name) return;
+  data.templates[name] = dd.expenses.map(e=>({category:e.category,amount:e.amount}));
+  saveData();
+});
+
+document.querySelectorAll('.chart-tabs button').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.chart-tabs button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    activeChart = btn.dataset.chart;
+    document.getElementById('categorySelectWrap').style.display = activeChart==='category' ? 'block' : 'none';
+    renderChart();
+  });
+});
+document.getElementById('categoryTrendSelect').addEventListener('change', renderChart);
+
+document.getElementById('exportJson').addEventListener('click', exportJSON);
+document.getElementById('exportCsv').addEventListener('click', exportCSV);
+document.getElementById('exportPdf').addEventListener('click', exportPDF);
+document.getElementById('importBtn').addEventListener('click', ()=>document.getElementById('importFile').click());
+document.getElementById('importFile').addEventListener('change',(e)=>{ if(e.target.files[0]) importBackup(e.target.files[0]); });
+
+document.getElementById('addCategoryBtn').addEventListener('click',()=>{
+  const v = document.getElementById('newCategory').value.trim();
+  if(v && !data.categories.includes(v)){ data.categories.push(v); document.getElementById('newCategory').value=''; render(); renderSettings(); }
+});
+document.getElementById('addTagBtn').addEventListener('click',()=>{
+  let v = document.getElementById('newTag').value.trim();
+  if(!v) return;
+  if(!v.startsWith('#')) v = '#'+v;
+  if(!data.tags.includes(v)){ data.tags.push(v); document.getElementById('newTag').value=''; render(); renderSettings(); }
+});
+document.getElementById('globalDefaultBudget').addEventListener('change',(e)=>{
+  data.defaultDailyBudget = Number(e.target.value)||0; render();
+});
+document.getElementById('addRecurBtn').addEventListener('click',()=>{
+  const weekday = Number(document.getElementById('recurWeekday').value);
+  const category = document.getElementById('recurCategory').value;
+  const amount = Number(document.getElementById('recurAmount').value);
+  const name = document.getElementById('recurName').value.trim() || category;
+  if(!amount || amount<=0){ alert('Enter a valid amount.'); return; }
+  data.recurring.push({id:genId(),name,category,weekday,amount,tag:''});
+  document.getElementById('recurAmount').value=''; document.getElementById('recurName').value='';
+  render(); renderSettings();
+});
+document.getElementById('addTmplLineBtn').addEventListener('click', addTmplLine);
+document.getElementById('saveNewTmplBtn').addEventListener('click',()=>{
+  const name = document.getElementById('newTmplName').value.trim();
+  if(!name){ alert('Give the template a name.'); return; }
+  const lines = Array.from(document.querySelectorAll('#newTmplLines .tmpl-line')).map(row=>({
+    category: row.querySelector('.tl-cat').value,
+    amount: Number(row.querySelector('.tl-amt').value)||0
+  })).filter(l=>l.amount>0);
+  if(lines.length===0){ alert('Add at least one line with an amount.'); return; }
+  data.templates[name] = lines;
+  render(); renderSettings();
+});
+
+/* =========================================================
+   INIT
+   ========================================================= */
+applyDarkMode();
+render();
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('sw.js').catch(()=>{ /* file:// or unsupported host — safe to ignore */ });
+  });
+}
+</script>
+</body>
+</html>
